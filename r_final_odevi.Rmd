@@ -1,0 +1,179 @@
+---
+title: "İleri R Programlama Final Ödevi"
+author: "emirhannamli"
+date: "2023-01-30"
+output: 
+  html_document:
+    css: style.css
+    toc : true
+    toc_depth : 2   
+    number_sections: true
+    toc_float: 
+      collapsed: true
+      smooth_scroll : true
+    date: "Last edited `r format(Sys.time(), '%B %d, %Y')`" 
+
+---
+
+# Github ve Veri Setinin Linki
+
+Github: [https://github.com/emirhannml/rodev/tree/master]
+
+Veri seti: [https://www.kaggle.com/datasets/muhammadglennyunifer/customer-segmentation-dataset]
+
+```{r include=FALSE}
+library(tidyverse)
+library(readxl)
+library(fastDummies)
+library(factoextra)
+```
+
+## Verinin İçe Aktarılması
+
+```{r 1}
+customerData <- read_excel("CustomerData.xlsx")
+data <- read_excel("CustomerData.xlsx")
+
+customerData <- subset(customerData, select = - ID)
+
+customerData$Spending_Score <- as.factor(customerData$Spending_Score)
+data$Spending_Score <- as.factor(data$Spending_Score)
+
+levels(customerData) <- c("Low","Average","High")
+levels(data) <- c("Low","Average","High")
+
+head(customerData)
+```
+
+
+
+```{r 2}
+unique(customerData$Spending_Score)
+```
+
+
+
+## Kümeleme için gösterge değişkenlerin oluşturulması
+
+```{r 3}
+customerData <- dummy_cols(customerData, select_columns = c("Gender","Ever_Married","Graduated","Profession","Spending_Score"), remove_first_dummy = TRUE, remove_selected_columns = TRUE)
+
+head(customerData)
+```
+
+## KMeans için verinin ölçeklendirilmesi
+
+```{r 4}
+scaledData <- scale(customerData)
+head(scaledData)
+```
+
+## Optimum kümes sayısı için dirsek metodunun kullanılması
+
+```{r 5}
+fviz_nbclust(scaledData, kmeans, method="wss") + 
+  labs(subtitle ="Elbow Method")
+```
+
+
+```{r 6}
+clusters <- kmeans(scaledData, centers = 8)
+head(clusters$cluster)
+```
+
+```{r 7}
+data["cluster"] <- as.character(clusters$cluster)
+head(data)
+```
+
+## Hangi küme en fazla harcıyor?
+
+```{r 8}
+a <- data %>%
+  group_by(cluster) %>%
+  filter(Spending_Score == "High")
+
+ap <- ggplot(a, aes(x=Spending_Score, fill = cluster)) +
+  geom_bar() 
+  
+ap + facet_grid(cols = vars(cluster))
+
+```
+8. kümedeki müşteriler daha fazla harcama yapıyorlar. 8. kümedeki müşterilere bir göz atalım.
+
+```{r 9}
+kumeSekiz <- data %>%
+  filter(cluster == "8") 
+
+head(kumeSekiz)
+```
+
+
+```{r 10}
+kumeSekiz %>%
+  count(Profession)
+```
+8. kümedeki müşteriler yukarıdaki meslekler ile uğraşmaktadır. 8. kümedeki müşteriler çoğunlukla sanatçıdır.
+
+## Alaylı ile eğitimli sanatçı arasında fark var mı?
+
+```{r 11}
+kumeSekiz %>%
+  filter(Profession == "Artist") %>%
+  group_by(Graduated) %>%
+  count(Spending_Score)
+```
+Eğitimli sanatçılar alaylılardan daha fazla harcamaya meyilli, bunun sebebi daha fazla kazanmaları olabilir.
+
+## 8. kümedeki kadın ve erkek müşteriler arasında fark var mı?
+
+```{r 12}
+kadınErkek <- kumeSekiz %>%
+  filter(Spending_Score == "High")
+
+kep <- ggplot(kadınErkek, aes(Spending_Score, fill = Gender)) +
+  geom_bar()
+
+kep + facet_grid(cols = vars(Gender))
+```
+
+Erkekler kadınlara göre daha yüksek harcama skoruna sahiptir.
+
+## Mesleklere göre nasıl bir fark var?
+
+```{r 13}
+meslekler <- kumeSekiz %>%
+  group_by(Profession)
+
+mp <- ggplot(meslekler, aes(x = Spending_Score, fill = Profession)) + geom_bar()
+
+mp + facet_grid(rows = vars(Profession))
+```
+
+Harcama skoru yüksek olan meslek grubu yöneticilerdir.
+
+## Firmanın nasıl müşterilere hitap ediyor? 
+
+```{r 14}
+ggplot(data, aes(x=Age, fill="blue")) +
+  geom_histogram(binwidth = 10)
+```
+
+
+```{r 15}
+high_prop <- mean(data$Spending_Score == "High")
+average_prop <- mean(data$Spending_Score == "Average")
+low_prop <- mean(data$Spending_Score == "Low")
+```
+
+Sırasıyla harcama skorlarının oranları; `r high_prop`, `r average_prop`, `r low_prop`. Histogram ve bu oranlara göre firma en çok harcama skoru düşük orta yaşlı kesime hitap ediyor.
+
+
+
+```{r session}
+sessionInfo()
+```
+
+
+
+
